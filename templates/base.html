@@ -8,6 +8,9 @@
 </head>
 <body>
   <div class="page">
+    {% if session.logged_in %}
+    <div class="logout-bar"><a href="{{ url_for('logout') }}">Log out</a></div>
+    {% endif %}
     {% block content %}{% endblock %}
   </div>
 </body>

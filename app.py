@@ -9,25 +9,49 @@ from __future__ import annotations
 
 import csv
 import datetime
+import hmac
 import io
+import os
 import zipfile
+from functools import wraps
 from pathlib import Path
 
-from flask import Flask, flash, redirect, render_template, request, send_file, url_for
+from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for
 
 from main import REQUIRED_COLUMNS, VALID_EMPLOYEE_TYPES, generate_month, load_company, load_employees, slugify
 from payslip.fy_utils import MONTH_NAMES, current_month_year, normalize_month_name
 from payslip.importer import parse_employee_workbook
 
 BASE_DIR = Path(__file__).resolve().parent
-EMPLOYEES_PATH = BASE_DIR / "employees.csv"
+
+# DATA_DIR holds employees.csv and output/ - point this at a mounted
+# persistent disk in production (e.g. Render), since the app's own source
+# directory is wiped on every redeploy. Defaults to this folder for local use.
+DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+EMPLOYEES_PATH = DATA_DIR / "employees.csv"
+OUTPUT_DIR = DATA_DIR / "output"
 COMPANY_PATH = BASE_DIR / "company_config.json"
-OUTPUT_DIR = BASE_DIR / "output"
 
 NUMERIC_FIELDS = ["pay_days", "basic", "sp_allowance", "ptax"]
 
+# Login is only enforced when both are set (e.g. via Render env vars).
+# Locally, neither is set, so the site behaves exactly as before: open access.
+APP_USERNAME = os.environ.get("APP_USERNAME")
+APP_PASSWORD = os.environ.get("APP_PASSWORD")
+AUTH_ENABLED = bool(APP_USERNAME and APP_PASSWORD)
+
 app = Flask(__name__)
-app.secret_key = "payslip-generator-local"
+app.secret_key = os.environ.get("SECRET_KEY", "payslip-generator-local")
+
+
+def login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if AUTH_ENABLED and not session.get("logged_in"):
+            return redirect(url_for("login", next=request.path))
+        return view(*args, **kwargs)
+    return wrapped
 
 
 def read_employee_rows():
@@ -84,7 +108,28 @@ def list_generated_months():
     return months
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if not AUTH_ENABLED:
+        return redirect(url_for("index"))
+    if request.method == "POST":
+        username_ok = hmac.compare_digest(request.form.get("username", ""), APP_USERNAME)
+        password_ok = hmac.compare_digest(request.form.get("password", ""), APP_PASSWORD)
+        if username_ok and password_ok:
+            session["logged_in"] = True
+            return redirect(request.args.get("next") or url_for("index"))
+        flash("Invalid username or password.", "error")
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    session.pop("logged_in", None)
+    return redirect(url_for("login"))
+
+
 @app.route("/")
+@login_required
 def index():
     employees = read_employee_rows()
     company = load_company(COMPANY_PATH) if COMPANY_PATH.exists() else {"name": "", "address": ""}
@@ -101,6 +146,7 @@ def index():
 
 
 @app.route("/employees/add", methods=["POST"])
+@login_required
 def add_employee():
     rows = read_employee_rows()
     data = {col: request.form.get(col, "").strip() for col in REQUIRED_COLUMNS}
@@ -124,6 +170,7 @@ def add_employee():
 
 
 @app.route("/employees/upload", methods=["POST"])
+@login_required
 def upload_employees():
     file = request.files.get("file")
     if not file or not file.filename:
@@ -156,6 +203,7 @@ def upload_employees():
 
 
 @app.route("/employees/<employee_id>/edit", methods=["GET", "POST"])
+@login_required
 def edit_employee(employee_id):
     rows = read_employee_rows()
     row = next((r for r in rows if r["employee_id"] == employee_id), None)
@@ -184,6 +232,7 @@ def edit_employee(employee_id):
 
 
 @app.route("/employees/<employee_id>/delete", methods=["POST"])
+@login_required
 def delete_employee(employee_id):
     rows = read_employee_rows()
     remaining = [r for r in rows if r["employee_id"] != employee_id]
@@ -196,6 +245,7 @@ def delete_employee(employee_id):
 
 
 @app.route("/generate", methods=["POST"])
+@login_required
 def generate():
     try:
         month_name = normalize_month_name(request.form.get("month_name", ""))
@@ -227,6 +277,7 @@ def _safe_output_path(relpath: str) -> Path:
 
 
 @app.route("/download/<path:relpath>")
+@login_required
 def download(relpath):
     try:
         path = _safe_output_path(relpath)
@@ -237,6 +288,7 @@ def download(relpath):
 
 
 @app.route("/download-zip/<fy_label_value>/<month_label>")
+@login_required
 def download_zip(fy_label_value, month_label):
     output_root = OUTPUT_DIR.resolve()
     month_dir = (OUTPUT_DIR / fy_label_value / month_label).resolve()
@@ -253,4 +305,8 @@ def download_zip(fy_label_value, month_label):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5050)
+    # Local dev: `python3 app.py`. For any real deployment, run via gunicorn
+    # instead (see requirements.txt) - that path never executes this block,
+    # so debug/the interactive debugger never run outside your own machine.
+    port = int(os.environ.get("PORT", 5050))
+    app.run(host="0.0.0.0", debug=True, port=port)

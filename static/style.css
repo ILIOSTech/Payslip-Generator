@@ -157,3 +157,26 @@ button[type="submit"]:hover { background: #244073; }
   color: #52606d;
   font-size: 0.88rem;
 }
+
+.logout-bar {
+  text-align: right;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+
+.logout-bar a { color: #52606d; }
+
+.login-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 60px;
+}
+
+.login-card { width: 320px; }
+
+.login-form {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.login-form input, .login-form button { width: 100%; }
