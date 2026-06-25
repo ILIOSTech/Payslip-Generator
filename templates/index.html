@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="company-header">
+  <div class="company-brand">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="{{ company.name }} logo" class="company-logo">
+    <h1>{{ company.name }}</h1>
+  </div>
+  <p>{{ company.address }}</p>
+  <p class="subtitle">Payslip Generator</p>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-list">
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<section class="card">
+  <h2>Employees</h2>
+  <table class="employee-table">
+    <thead>
+      <tr>
+        <th>Name</th><th>Designation</th><th>Employee ID</th><th>Type</th><th>Date of Joining</th>
+        <th>UAN</th><th>Pay Days</th><th>Basic</th><th>Sp Allowance</th><th>P.Tax</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in employees %}
+      <tr>
+        <td>{{ e.name }}</td>
+        <td>{{ e.designation }}</td>
+        <td>{{ e.employee_id }}</td>
+        <td>{{ e.employee_type }}</td>
+        <td>{{ e.date_of_joining }}</td>
+        <td>{{ e.uan }}</td>
+        <td>{{ e.pay_days }}</td>
+        <td>{{ e.basic }}</td>
+        <td>{{ e.sp_allowance }}</td>
+        <td>{{ e.ptax }}</td>
+        <td class="actions">
+          <a href="{{ url_for('edit_employee', employee_id=e.employee_id) }}">Edit</a>
+          <form method="post" action="{{ url_for('delete_employee', employee_id=e.employee_id) }}"
+                onsubmit="return confirm('Delete {{ e.name }}?');">
+            <button type="submit" class="link-button">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="11">No employees yet. Add one below.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>Add Employee</h3>
+  <form method="post" action="{{ url_for('add_employee') }}" class="employee-form">
+    <input name="name" placeholder="Full Name" required>
+    <input name="designation" placeholder="Designation" required>
+    <input name="employee_id" placeholder="Employee ID" required>
+    <select name="employee_type" required>
+      <option value="Permanent">Permanent (26 days)</option>
+      <option value="Labour">Labour (30 days)</option>
+    </select>
+    <input name="date_of_joining" placeholder="Date of Joining (DD.MM.YYYY)" required>
+    <input name="uan" placeholder="UAN Number" required>
+    <input name="pay_days" placeholder="Pay Days" type="number" step="0.5" value="26" required>
+    <input name="basic" placeholder="Basic" type="number" step="0.01" required>
+    <input name="sp_allowance" placeholder="Sp Allowance" type="number" step="0.01" required>
+    <input name="ptax" placeholder="P.Tax" type="number" step="0.01" required>
+    <button type="submit">Add Employee</button>
+  </form>
+
+  <h3>Import Employees from Excel</h3>
+  <form method="post" action="{{ url_for('upload_employees') }}" enctype="multipart/form-data" class="employee-form">
+    <input type="file" name="file" accept=".xls,.xlsx" required>
+    <button type="submit">Upload &amp; Import</button>
+  </form>
+  <p class="hint">Reads a sheet with columns like Employee Name, Designation, Employee ID, Date of Joining, Pay Days, UAN Number, Basic, Sp Allowance, P.Tax. Existing Employee IDs are skipped; new ones default to "Permanent" &mdash; edit afterward if any are Labour.</p>
+  <p class="hint">Pay Days = days actually present this month (out of 26 for Permanent staff, 30 for Labour). Fewer days than standard reduces Gross proportionally.</p>
+</section>
+
+<section class="card">
+  <h2>Generate Payslips</h2>
+  <form method="post" action="{{ url_for('generate') }}" class="generate-form">
+    <label>Month
+      <select name="month_name" required>
+        {% for m in month_names %}
+        <option value="{{ m }}" {% if m == default_month %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Year
+      <input name="year" type="number" value="{{ default_year }}" required>
+    </label>
+    <button type="submit">Generate</button>
+  </form>
+  <p class="hint">Generates payslips for that single month only, using the employee data currently above. Earlier months you've already generated are left untouched &mdash; update Pay Days (and anything else) here before generating each new month.</p>
+</section>
+
+<section class="card">
+  <h2>Generated Months</h2>
+  {% if not generated_months %}
+    <p>Nothing generated yet.</p>
+  {% endif %}
+  {% for month in generated_months %}
+    <div class="fy-block">
+      <h3>{{ month.display }}
+        <a class="zip-link" href="{{ url_for('download_zip', fy_label_value=month.fy_label, month_label=month.month_label) }}">Download All (.zip)</a>
+      </h3>
+      <ul>
+        {% if month.register %}
+        <li><a href="{{ url_for('download', relpath=month.register) }}">Salary Register</a></li>
+        {% endif %}
+        {% for name, relpath in month.payslips %}
+        <li><a href="{{ url_for('download', relpath=relpath) }}">{{ name }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}
