@@ -12,28 +12,18 @@ from .money_utils import amount_in_words, indian_currency
 
 LOGO_PATH = Path(__file__).resolve().parent.parent / "static" / "logo.png"
 LOGO_HEIGHT_PT = 30
+STAMP_PATH = Path(__file__).resolve().parent.parent / "static" / "stamp.jpg"
+STAMP_HEIGHT_PT = 50
 
 # Helvetica (a base-14 PDF font) has no glyph for the Rupee sign (U+20B9), so it
-# renders as a missing-glyph box. Georgia ships with macOS and does have the
-# glyph, so it's used - only for that one character - via an inline font tag.
-RUPEE_FONT_NAME = "RupeeGlyph"
-RUPEE_FONT_PATH = Path("/System/Library/Fonts/Supplemental/Georgia.ttf")
-_RUPEE_FONT_AVAILABLE = False
-if RUPEE_FONT_PATH.exists():
-    try:
-        pdfmetrics.registerFont(TTFont(RUPEE_FONT_NAME, str(RUPEE_FONT_PATH)))
-        _RUPEE_FONT_AVAILABLE = True
-    except Exception:
-        _RUPEE_FONT_AVAILABLE = False
-
-
-def _currency_markup(amount: float) -> str:
-    """Indian-formatted currency, safe to embed directly in Paragraph text."""
-    text = indian_currency(amount)
-    if _RUPEE_FONT_AVAILABLE:
-        return text.replace("₹", f'<font name="{RUPEE_FONT_NAME}">₹</font>', 1)
-    return text.replace("₹", "Rs. ", 1)
-
+# renders as a missing-glyph box. DejaVu Sans (bundled here, not relying on
+# whatever happens to be installed on the host OS) does have the glyph, so it's
+# used for all PDF text - this also keeps rendering identical locally and on
+# any deployment server.
+FONTS_DIR = Path(__file__).resolve().parent / "fonts"
+pdfmetrics.registerFont(TTFont("DejaVuSans", str(FONTS_DIR / "DejaVuSans.ttf")))
+pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", str(FONTS_DIR / "DejaVuSans-Bold.ttf")))
+pdfmetrics.registerFont(TTFont("DejaVuSans-Oblique", str(FONTS_DIR / "DejaVuSans-Oblique.ttf")))
 
 HEADER_FILL = HexColor("#DDEBF7")
 COMPANY_COLOR = HexColor("#ED7D31")
@@ -41,35 +31,39 @@ ADDRESS_COLOR = HexColor("#2E5496")
 GRID_COLOR = colors.black
 GRID_WIDTH = 0.5
 
-COMPANY_STYLE = ParagraphStyle("company", fontName="Helvetica-Bold", fontSize=18, textColor=COMPANY_COLOR, leading=22)
-ADDRESS_STYLE = ParagraphStyle("address", fontName="Helvetica-Bold", fontSize=10.5, textColor=ADDRESS_COLOR,
+COMPANY_STYLE = ParagraphStyle("company", fontName="DejaVuSans-Bold", fontSize=18, textColor=COMPANY_COLOR, leading=22)
+ADDRESS_STYLE = ParagraphStyle("address", fontName="DejaVuSans-Bold", fontSize=10.5, textColor=ADDRESS_COLOR,
                                 alignment=1, leading=14)
-TITLE_STYLE = ParagraphStyle("title", fontName="Helvetica-Bold", fontSize=10.5, alignment=1, leading=16)
-LABEL_STYLE = ParagraphStyle("label", fontName="Helvetica-Bold", fontSize=9, leading=12)
-VALUE_STYLE = ParagraphStyle("value", fontName="Helvetica", fontSize=9, leading=12)
+TITLE_STYLE = ParagraphStyle("title", fontName="DejaVuSans-Bold", fontSize=10.5, alignment=1, leading=16)
+LABEL_STYLE = ParagraphStyle("label", fontName="DejaVuSans-Bold", fontSize=9, leading=12)
+VALUE_STYLE = ParagraphStyle("value", fontName="DejaVuSans", fontSize=9, leading=12)
 VALUE_RIGHT_STYLE = ParagraphStyle("value_right", parent=VALUE_STYLE, alignment=2)
 LABEL_RIGHT_STYLE = ParagraphStyle("label_right", parent=LABEL_STYLE, alignment=2)
-HEADER_CELL_STYLE = ParagraphStyle("header_cell", fontName="Helvetica-Bold", fontSize=9, alignment=1)
-NET_PAY_STYLE = ParagraphStyle("net_pay", fontName="Helvetica-Bold", fontSize=15, alignment=1)
-WORDS_STYLE = ParagraphStyle("words", fontName="Helvetica-Oblique", fontSize=9, alignment=1)
-SIGNATORY_STYLE = ParagraphStyle("signatory", fontName="Helvetica-Bold", fontSize=9, alignment=2)
+HEADER_CELL_STYLE = ParagraphStyle("header_cell", fontName="DejaVuSans-Bold", fontSize=9, alignment=1)
+NET_PAY_STYLE = ParagraphStyle("net_pay", fontName="DejaVuSans-Bold", fontSize=15, alignment=1)
+WORDS_STYLE = ParagraphStyle("words", fontName="DejaVuSans-Oblique", fontSize=9, alignment=1)
+SIGNATORY_STYLE = ParagraphStyle("signatory", fontName="DejaVuSans-Bold", fontSize=9, alignment=2)
 
 
 def _money(value):
-    return Paragraph(_currency_markup(value), VALUE_RIGHT_STYLE)
+    return Paragraph(indian_currency(value), VALUE_RIGHT_STYLE)
 
 
 def _money_bold(value):
-    return Paragraph(_currency_markup(value), LABEL_RIGHT_STYLE)
+    return Paragraph(indian_currency(value), LABEL_RIGHT_STYLE)
+
+
+def _image_at_height(path: Path, height_pt: float):
+    if not path.exists():
+        return None
+    from PIL import Image as PILImage
+    with PILImage.open(path) as im:
+        ratio = im.width / im.height
+    return Image(str(path), width=height_pt * ratio, height=height_pt)
 
 
 def _logo_image():
-    if not LOGO_PATH.exists():
-        return None
-    from PIL import Image as PILImage
-    with PILImage.open(LOGO_PATH) as im:
-        ratio = im.width / im.height
-    return Image(str(LOGO_PATH), width=LOGO_HEIGHT_PT * ratio, height=LOGO_HEIGHT_PT)
+    return _image_at_height(LOGO_PATH, LOGO_HEIGHT_PT)
 
 
 def _header_block(company, month_name, year, col_widths):
@@ -124,7 +118,7 @@ def _detail_and_net_pay_block(result, col_widths):
     data = [["Employee Pay Summary", "", "Employee Net Pay", ""]]
     for label, value in detail_rows:
         data.append([Paragraph(label, LABEL_STYLE), Paragraph(str(value), VALUE_STYLE), "", ""])
-    data[1][2] = Paragraph(_currency_markup(result.net), NET_PAY_STYLE)
+    data[1][2] = Paragraph(indian_currency(result.net), NET_PAY_STYLE)
 
     table = Table(data, colWidths=col_widths)
     style = [
@@ -233,11 +227,19 @@ def _net_pay_ctc_block(result, col_widths):
 def _signature_block(col_widths):
     content_width = sum(col_widths)
     sig_width = col_widths[2] + col_widths[3]
-    table = Table([["", Paragraph("Authorised Signatory", SIGNATORY_STYLE)]],
-                   colWidths=[content_width - sig_width, sig_width])
+    stamp = _image_at_height(STAMP_PATH, STAMP_HEIGHT_PT)
+    table = Table(
+        [
+            ["", stamp if stamp is not None else ""],
+            ["", Paragraph("Authorised Signatory", SIGNATORY_STYLE)],
+        ],
+        colWidths=[content_width - sig_width, sig_width],
+    )
     table.setStyle(TableStyle([
-        ("LINEABOVE", (1, 0), (1, 0), GRID_WIDTH, GRID_COLOR),
-        ("TOPPADDING", (1, 0), (1, 0), 4),
+        ("ALIGN", (1, 0), (1, 0), "CENTER"),
+        ("BOTTOMPADDING", (1, 0), (1, 0), 2),
+        ("LINEABOVE", (1, 1), (1, 1), GRID_WIDTH, GRID_COLOR),
+        ("TOPPADDING", (1, 1), (1, 1), 4),
     ]))
     return table
 
@@ -250,7 +252,7 @@ def _payslip_flowables(company, month_name, year, result, col_widths):
     flowables.append(Spacer(1, 10))
     flowables.append(_net_pay_ctc_block(result, col_widths))
     flowables.append(Spacer(1, 12))
-    words_text = f"Total Net Payable {_currency_markup(result.net)} ({amount_in_words(result.net)})"
+    words_text = f"Total Net Payable {indian_currency(result.net)} ({amount_in_words(result.net)})"
     flowables.append(Paragraph(words_text, WORDS_STYLE))
     flowables.append(Spacer(1, 24))
     flowables.append(_signature_block(col_widths))
@@ -272,10 +274,10 @@ def build_employee_pdf(company: dict, fy_months_results: list, output_path):
     doc.build(flowables)
 
 
-REGISTER_STYLE = ParagraphStyle("register_cell", fontName="Helvetica", fontSize=6.5, leading=8)
-REGISTER_HEADER_STYLE = ParagraphStyle("register_header", fontName="Helvetica-Bold", fontSize=6.5,
+REGISTER_STYLE = ParagraphStyle("register_cell", fontName="DejaVuSans", fontSize=6.5, leading=8)
+REGISTER_HEADER_STYLE = ParagraphStyle("register_header", fontName="DejaVuSans-Bold", fontSize=6.5,
                                         alignment=1, leading=8)
-REGISTER_TITLE_STYLE = ParagraphStyle("register_title", fontName="Helvetica-Bold", fontSize=13, alignment=1)
+REGISTER_TITLE_STYLE = ParagraphStyle("register_title", fontName="DejaVuSans-Bold", fontSize=13, alignment=1)
 
 
 def _register_table(month_name, year, results):
@@ -304,12 +306,12 @@ def _register_table(month_name, year, results):
         row = [Paragraph(str(v), REGISTER_STYLE) for v in values]
         for key, amount in money_values:
             totals[key] += amount
-            row.append(Paragraph(_currency_markup(amount), REGISTER_STYLE))
+            row.append(Paragraph(indian_currency(amount), REGISTER_STYLE))
         data.append(row)
 
     totals_row = [Paragraph("TOTAL", REGISTER_HEADER_STYLE)] + [""] * 7
     for key in ("basic", "sp", "gross", "pfe", "pfr", "ese", "esr", "ptax", "net", "ctc"):
-        totals_row.append(Paragraph(_currency_markup(totals[key]), REGISTER_HEADER_STYLE))
+        totals_row.append(Paragraph(indian_currency(totals[key]), REGISTER_HEADER_STYLE))
     data.append(totals_row)
 
     table = Table(data, repeatRows=1)
