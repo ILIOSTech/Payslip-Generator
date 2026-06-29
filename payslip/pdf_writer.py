@@ -13,7 +13,7 @@ from .money_utils import amount_in_words, indian_currency
 LOGO_PATH = Path(__file__).resolve().parent.parent / "static" / "logo.png"
 LOGO_HEIGHT_PT = 30
 STAMP_PATH = Path(__file__).resolve().parent.parent / "static" / "stamp.jpg"
-STAMP_HEIGHT_PT = 50
+STAMP_HEIGHT_PT = 85
 
 # Helvetica (a base-14 PDF font) has no glyph for the Rupee sign (U+20B9), so it
 # renders as a missing-glyph box. DejaVu Sans (bundled here, not relying on
