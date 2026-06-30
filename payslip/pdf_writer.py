@@ -1,3 +1,4 @@
+import io
 from pathlib import Path
 
 from reportlab.lib import colors
@@ -53,13 +54,42 @@ def _money_bold(value):
     return Paragraph(indian_currency(value), LABEL_RIGHT_STYLE)
 
 
+# Logos/stamps are saved at print/scan resolution (thousands of px) but only
+# ever rendered a few dozen points tall. Re-rendering hundreds of payslips
+# would otherwise re-decode and re-compress the full-resolution source image
+# on every single PDF; instead each (path, height) is downscaled once and the
+# small result cached in memory for the life of the process.
+_RESIZED_IMAGE_CACHE = {}
+_IMAGE_DPI = 200
+
+
+def _scaled_image_bytes(path: Path, height_pt: float):
+    cache_key = (str(path), height_pt)
+    if cache_key in _RESIZED_IMAGE_CACHE:
+        return _RESIZED_IMAGE_CACHE[cache_key]
+
+    from PIL import Image as PILImage
+    target_height_px = max(1, round(height_pt * _IMAGE_DPI / 72))
+    with PILImage.open(path) as im:
+        ratio = im.width / im.height
+        target_width_px = max(1, round(target_height_px * ratio))
+        if target_height_px < im.height:
+            im = im.resize((target_width_px, target_height_px), PILImage.LANCZOS)
+        else:
+            im = im.copy()
+        buffer = io.BytesIO()
+        im.save(buffer, format="PNG")
+
+    result = (buffer.getvalue(), ratio)
+    _RESIZED_IMAGE_CACHE[cache_key] = result
+    return result
+
+
 def _image_at_height(path: Path, height_pt: float):
     if not path.exists():
         return None
-    from PIL import Image as PILImage
-    with PILImage.open(path) as im:
-        ratio = im.width / im.height
-    return Image(str(path), width=height_pt * ratio, height=height_pt)
+    data, ratio = _scaled_image_bytes(path, height_pt)
+    return Image(io.BytesIO(data), width=height_pt * ratio, height=height_pt)
 
 
 def _logo_image():
