@@ -128,16 +128,20 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.context_processor
+def inject_company():
+    company = load_company(COMPANY_PATH) if COMPANY_PATH.exists() else {"name": "ILIOS TECHNOLOGY", "address": ""}
+    return {"company": company}
+
+
 @app.route("/")
 @login_required
 def index():
     employees = read_employee_rows()
-    company = load_company(COMPANY_PATH) if COMPANY_PATH.exists() else {"name": "", "address": ""}
     default_month, default_year = current_month_year()
     return render_template(
         "index.html",
         employees=employees,
-        company=company,
         generated_months=list_generated_months(),
         month_names=MONTH_NAMES,
         default_month=default_month,
@@ -241,6 +245,15 @@ def delete_employee(employee_id):
     else:
         write_employee_rows(remaining)
         flash("Employee deleted.", "success")
+    return redirect(url_for("index"))
+
+
+@app.route("/employees/delete-all", methods=["POST"])
+@login_required
+def delete_all_employees():
+    count = len(read_employee_rows())
+    write_employee_rows([])
+    flash(f"Deleted all {count} employee{'' if count == 1 else 's'}.", "success")
     return redirect(url_for("index"))
 
 

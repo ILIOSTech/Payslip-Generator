@@ -12,21 +12,29 @@
 
 <section class="card">
   <h2>Edit Employee</h2>
-  <form method="post" action="{{ url_for('edit_employee', employee_id=employee.employee_id) }}" class="employee-form">
-    <input name="name" value="{{ employee.name }}" placeholder="Full Name" required>
-    <input name="designation" value="{{ employee.designation }}" placeholder="Designation" required>
-    <input name="employee_id" value="{{ employee.employee_id }}" placeholder="Employee ID" required readonly>
-    <select name="employee_type" required>
-      <option value="Permanent" {% if employee.employee_type == "Permanent" %}selected{% endif %}>Permanent (26 days)</option>
-      <option value="Labour" {% if employee.employee_type == "Labour" %}selected{% endif %}>Labour (30 days)</option>
-    </select>
-    <input name="date_of_joining" value="{{ employee.date_of_joining }}" placeholder="Date of Joining" required>
-    <input name="uan" value="{{ employee.uan }}" placeholder="UAN Number" required>
-    <input name="pay_days" value="{{ employee.pay_days }}" type="number" step="0.5" required>
-    <input name="basic" value="{{ employee.basic }}" type="number" step="0.01" required>
-    <input name="sp_allowance" value="{{ employee.sp_allowance }}" type="number" step="0.01" required>
-    <input name="ptax" value="{{ employee.ptax }}" type="number" step="0.01" required>
-    <button type="submit">Save Changes</button>
+  <p class="card-subtitle">Updating {{ employee.name }}.</p>
+  <form method="post" action="{{ url_for('edit_employee', employee_id=employee.employee_id) }}">
+    <div class="field-grid">
+      <div class="field"><label>Full Name</label><input name="name" value="{{ employee.name }}" required></div>
+      <div class="field"><label>Designation</label><input name="designation" value="{{ employee.designation }}" required></div>
+      <div class="field"><label>Employee ID</label><input name="employee_id" value="{{ employee.employee_id }}" required readonly></div>
+      <div class="field">
+        <label>Employee Type</label>
+        <select name="employee_type" required>
+          <option value="Permanent" {% if employee.employee_type == "Permanent" %}selected{% endif %}>Permanent (26 days)</option>
+          <option value="Labour" {% if employee.employee_type == "Labour" %}selected{% endif %}>Labour (30 days)</option>
+        </select>
+      </div>
+      <div class="field"><label>Date of Joining</label><input name="date_of_joining" value="{{ employee.date_of_joining }}" required></div>
+      <div class="field"><label>UAN Number</label><input name="uan" value="{{ employee.uan }}" required></div>
+      <div class="field"><label>Pay Days</label><input name="pay_days" value="{{ employee.pay_days }}" type="number" step="0.5" required></div>
+      <div class="field"><label>Basic</label><input name="basic" value="{{ employee.basic }}" type="number" step="0.01" required></div>
+      <div class="field"><label>Sp Allowance</label><input name="sp_allowance" value="{{ employee.sp_allowance }}" type="number" step="0.01" required></div>
+      <div class="field"><label>P.Tax</label><input name="ptax" value="{{ employee.ptax }}" type="number" step="0.01" required></div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
   </form>
   <a class="back-link" href="{{ url_for('index') }}">&larr; Back without saving</a>
 </section>

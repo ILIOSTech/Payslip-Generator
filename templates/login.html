@@ -12,10 +12,10 @@
         </div>
       {% endif %}
     {% endwith %}
-    <form method="post" class="employee-form login-form">
-      <input name="username" placeholder="Username" autofocus required>
-      <input name="password" type="password" placeholder="Password" required>
-      <button type="submit">Sign in</button>
+    <form method="post" class="login-form">
+      <div class="field"><label>Username</label><input name="username" autofocus required></div>
+      <div class="field"><label>Password</label><input name="password" type="password" required></div>
+      <button type="submit" class="btn btn-primary">Sign in</button>
     </form>
   </section>
 </div>
